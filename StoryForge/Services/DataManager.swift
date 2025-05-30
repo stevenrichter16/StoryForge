@@ -239,3 +239,13 @@ extension DataManager {
         }
     }
 }
+
+extension CharacterRelationship: Hashable {
+    static func == (lhs: CharacterRelationship, rhs: CharacterRelationship) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+}
