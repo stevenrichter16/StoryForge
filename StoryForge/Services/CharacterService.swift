@@ -19,109 +19,129 @@ final class CharacterService: ObservableObject {
     }
     
     func generateCharacter(request: CharacterRequest) async throws -> CharacterProfile {
-        isGenerating = true
-        generationError = nil
-        defer { isGenerating = false }
-        
-        // Build the prompt with structured output request
-        let systemPrompt = """
-        You are a master storyteller and character creator. Create rich, complex characters with depth and nuance.
-        
-        Format your response EXACTLY as follows, with each section clearly labeled:
-        
-        [NAME]
-        (Character's full name)
-        
-        [AGE]
-        (Numeric age)
-        
-        [OCCUPATION]
-        (Character's profession or role)
-        
-        [TAGLINE]
-        (A compelling one-line description)
-        
-        [APPEARANCE]
-        (Physical description paragraph)
-        
-        [DISTINGUISHING_FEATURES]
-        - Feature 1
-        - Feature 2
-        (List 2-4 unique physical features)
-        
-        [PERSONALITY_TRAITS]
-        - Trait 1
-        - Trait 2
-        - Trait 3
-        (List 3-5 personality traits)
-        
-        [CORE_BELIEF]
-        (One sentence describing their fundamental belief)
-        
-        [BACKSTORY]
-        (2-3 paragraph backstory)
-        
-        [KEY_LIFE_EVENTS]
-        - Event 1
-        - Event 2
-        - Event 3
-        (List 3-5 major life events)
-        
-        [FEARS]
-        - Fear 1
-        - Fear 2
-        (List 2-3 deep fears)
-        
-        [DESIRES]
-        - Desire 1
-        - Desire 2
-        (List 2-3 core desires)
-        
-        [SECRETS]
-        - Secret 1
-        - Secret 2
-        (List 1-2 hidden secrets)
-        
-        [MOTIVATIONS]
-        - Motivation 1
-        - Motivation 2
-        (List 2-3 driving motivations)
-        
-        [INTERNAL_CONFLICT]
-        (One paragraph describing internal struggle)
-        
-        [EXTERNAL_CONFLICT]
-        (One paragraph describing external challenges)
-        
-        [CHARACTER_ARC]
-        (One paragraph describing potential character growth)
-        """
-        
-        let userPrompt = buildPrompt(from: request)
-        
-        do {
-            // Call OpenAI
-            let generatedContent = try await OpenAIClient.shared.chatCompletion(
-                systemPrompt: systemPrompt,
-                userPrompt: userPrompt,
-                temperature: request.complexityLevel.temperature
-            )
+            isGenerating = true
+            generationError = nil
+            defer { isGenerating = false }
             
-            // Parse the response into a CharacterProfile
-            let profile = try parseCharacterProfile(
-                from: generatedContent,
-                requestId: request.id
-            )
+            // Store user-selected personality traits
+            let userSelectedPersonalityTraits = request.additionalTraits.filter { trait in
+                // Check if this trait is from Core Personality category
+                CharacterTraitDatabase.categories
+                    .first { $0.name == "Core Personality" }?
+                    .traits
+                    .contains { $0.name == trait } ?? false
+            }
             
-            // Save the profile
-            try dataManager.save(profile: profile)
+            print("User selected personality traits: \(userSelectedPersonalityTraits)")
             
-            return profile
-        } catch {
-            generationError = error.localizedDescription
-            throw error
+            // Build the prompt with structured output request
+            let systemPrompt = """
+            You are a master storyteller and character creator. Create rich, complex characters with depth and nuance.
+            
+            IMPORTANT: The character MUST have these personality traits: \(userSelectedPersonalityTraits.joined(separator: ", "))
+            
+            Format your response EXACTLY as follows, with each section clearly labeled:
+            
+            [NAME]
+            (Character's full name)
+            
+            [AGE]
+            (Numeric age)
+            
+            [OCCUPATION]
+            (Character's profession or role)
+            
+            [TAGLINE]
+            (A compelling one-line description)
+            
+            [APPEARANCE]
+            (Physical description paragraph)
+            
+            [DISTINGUISHING_FEATURES]
+            - Feature 1
+            - Feature 2
+            (List 2-4 unique physical features)
+            
+            [PERSONALITY_TRAITS]
+            - MUST INCLUDE: \(userSelectedPersonalityTraits.joined(separator: "\n- MUST INCLUDE: "))
+            - Additional trait 1
+            - Additional trait 2
+            (Include the required traits above plus 1-2 additional complementary traits)
+            
+            [CORE_BELIEF]
+            (One sentence describing their fundamental belief)
+            
+            [BACKSTORY]
+            (2-3 paragraph backstory)
+            
+            [KEY_LIFE_EVENTS]
+            - Event 1
+            - Event 2
+            - Event 3
+            (List 3-5 major life events)
+            
+            [FEARS]
+            - Fear 1
+            - Fear 2
+            (List 2-3 deep fears)
+            
+            [DESIRES]
+            - Desire 1
+            - Desire 2
+            (List 2-3 core desires)
+            
+            [SECRETS]
+            - Secret 1
+            - Secret 2
+            (List 1-2 hidden secrets)
+            
+            [MOTIVATIONS]
+            - Motivation 1
+            - Motivation 2
+            (List 2-3 driving motivations)
+            
+            [INTERNAL_CONFLICT]
+            (One paragraph describing internal struggle)
+            
+            [EXTERNAL_CONFLICT]
+            (One paragraph describing external challenges)
+            
+            [CHARACTER_ARC]
+            (One paragraph describing potential character growth)
+            """
+            
+            let userPrompt = buildPrompt(from: request)
+            
+            do {
+                // Call OpenAI
+                let generatedContent = try await OpenAIClient.shared.chatCompletion(
+                    systemPrompt: systemPrompt,
+                    userPrompt: userPrompt,
+                    temperature: request.complexityLevel.temperature
+                )
+                
+                // Parse the response into a CharacterProfile
+                let profile = try parseCharacterProfile(
+                    from: generatedContent,
+                    requestId: request.id
+                )
+                
+                // Ensure user-selected personality traits are included
+                var finalPersonalityTraits = Set(profile.personalityTraits)
+                finalPersonalityTraits.formUnion(userSelectedPersonalityTraits)
+                profile.personalityTraits = Array(finalPersonalityTraits)
+                
+                // Save the profile
+                try dataManager.save(profile: profile)
+                
+                print("✅ Character profile created with traits: \(profile.personalityTraits)")
+                
+                return profile
+            } catch {
+                generationError = error.localizedDescription
+                throw error
+            }
         }
-    }
     
     private func buildPrompt(from request: CharacterRequest) -> String {
         var prompt = "\(request.archetype.prompt)\(request.userPrompt)"

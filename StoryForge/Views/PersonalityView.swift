@@ -85,5 +85,12 @@ struct PersonalityView: View {
                 }
             }
         }
+        .onAppear {
+            print("=== PersonalityView Display Debug ===")
+            print("Profile name: \(profile.name)")
+            print("Personality traits count: \(profile.personalityTraits.count)")
+            print("Personality traits: \(profile.personalityTraits)")
+            print("===================================")
+        }
     }
 }

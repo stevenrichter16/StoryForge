@@ -8,6 +8,9 @@
 // MARK: - CharacterComposerView.swift
 import SwiftUI
 
+// MARK: - CharacterComposerView.swift
+import SwiftUI
+
 struct CharacterComposerView: View {
     @Binding var selectedGenre: Genre
     @Binding var selectedArchetype: CharacterArchetype
@@ -73,7 +76,7 @@ struct CharacterComposerView: View {
                     )
                     .tag(2)
                     
-                    // Step 4: Review
+                    // Step 4: Review - Use CharacterReviewStep instead of ReviewStep
                     CharacterReviewStep(
                         characterData: buildCharacterData(),
                         selectedTraits: selectedTraits
@@ -137,7 +140,4 @@ struct CharacterComposerView: View {
     private func createCharacter() {
         onSubmit(buildCharacterData())
     }
-    
 }
-
-

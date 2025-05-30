@@ -126,42 +126,18 @@ struct CreateCharacterView: View {
     }
     
     // MARK: - Helper Methods
-    
-    private func createCharacterWithEnhancedData(_ characterData: CharacterCreationData) {
-        // Extract the full prompt from the character data
-        let fullPrompt = characterData.buildPrompt()
-        
-        // Create the character request with all the data
-        let request = CharacterRequest(
-            userPrompt: fullPrompt,
-            genre: characterData.genre,
-            archetype: characterData.archetype,
-            complexityLevel: characterData.complexity,
-            ageRange: characterData.age.isEmpty ? nil : characterData.age,
-            timePeriod: nil, // Could be extracted from additional notes
-            additionalTraits: extractTraitNames(from: characterData.traits)
-        )
-        
-        do {
-            try dataManager.save(request: request)
-            
-            Task {
-                do {
-                    let _ = try await characterService.generateCharacter(request: request)
-                } catch {
-                    print("Failed to generate character: \(error)")
-                }
-            }
-        } catch {
-            print("Failed to save request: \(error)")
-        }
-    }
-    
+    // Also add this helper method if it's missing:
     private func extractTraitNames(from traitDict: [String: Set<CharacterTrait>]) -> [String] {
         var allTraits: [String] = []
         
-        for (_, traits) in traitDict {
-            allTraits.append(contentsOf: traits.map { $0.name })
+        for (categoryName, traits) in traitDict {
+            let traitNames = traits.map { $0.name }
+            allTraits.append(contentsOf: traitNames)
+            
+            // Debug logging
+            if !traitNames.isEmpty {
+                print("  Extracting from \(categoryName): \(traitNames.joined(separator: ", "))")
+            }
         }
         
         return allTraits
@@ -171,6 +147,97 @@ struct CreateCharacterView: View {
         selectedGenre = template.genre
         selectedArchetype = template.archetype
         selectedComplexity = template.complexity
+    }
+    
+
+    private func createCharacterWithEnhancedData(_ characterData: CharacterCreationData) {
+        // Debug logging at the start
+        print("=== createCharacterWithEnhancedData START ===")
+        print("Character Name: \(characterData.name)")
+        print("Selected Traits from characterData:")
+        for (category, traits) in characterData.traits {
+            if !traits.isEmpty {
+                print("  \(category): \(traits.map { $0.name }.joined(separator: ", "))")
+            }
+        }
+        
+        // Build a more detailed prompt that includes trait information
+        var fullPrompt = characterData.buildPrompt()
+        print("\nBase Prompt Generated:")
+        print(fullPrompt)
+        
+        // Extract personality traits specifically for the AI
+        let personalityTraits = characterData.traits["Core Personality"]?.map { $0.name } ?? []
+        if !personalityTraits.isEmpty {
+            fullPrompt += "\n\nCore personality traits: \(personalityTraits.joined(separator: ", "))"
+            print("\nPersonality traits added to prompt: \(personalityTraits)")
+        } else {
+            print("\n⚠️ No Core Personality traits found!")
+        }
+        
+        // Extract all trait names
+        let allTraitNames = extractTraitNames(from: characterData.traits)
+        print("\nAll extracted trait names: \(allTraitNames)")
+        
+        // Create the character request with all the data
+        let request = CharacterRequest(
+            userPrompt: fullPrompt,
+            genre: characterData.genre,
+            archetype: characterData.archetype,
+            complexityLevel: characterData.complexity,
+            ageRange: characterData.age.isEmpty ? nil : characterData.age,
+            timePeriod: nil,
+            additionalTraits: allTraitNames
+        )
+        
+        print("\nCharacterRequest created:")
+        print("  - Genre: \(request.genre.name)")
+        print("  - Archetype: \(request.archetype.name)")
+        print("  - Additional Traits: \(request.additionalTraits)")
+        
+        do {
+            try dataManager.save(request: request)
+            print("✅ Request saved to dataManager")
+            
+            Task {
+                do {
+                    print("\n🔄 Starting character generation...")
+                    let profile = try await characterService.generateCharacter(request: request)
+                    
+                    print("\n📝 Profile generated:")
+                    print("  - Name: \(profile.name)")
+                    print("  - Personality Traits from AI: \(profile.personalityTraits)")
+                    
+                    // Update the profile with the selected personality traits
+                    if let personalityTraits = characterData.traits["Core Personality"], !personalityTraits.isEmpty {
+                        let originalTraits = profile.personalityTraits
+                        profile.personalityTraits = Array(personalityTraits.map { $0.name })
+                        
+                        print("\n🔄 Updating personality traits:")
+                        print("  - Original from AI: \(originalTraits)")
+                        print("  - Replaced with user selection: \(profile.personalityTraits)")
+                        
+                        // BUG FIX: You need to save the profile, not the request again
+                        try dataManager.save(profile: profile)
+                        print("✅ Profile updated and saved")
+                    } else {
+                        print("\n⚠️ No Core Personality traits to update")
+                    }
+                    
+                    print("\n✅ Character created successfully with traits: \(profile.personalityTraits)")
+                    print("=== createCharacterWithEnhancedData END ===\n")
+                    
+                } catch {
+                    print("\n❌ Failed to generate character: \(error)")
+                    print("Error details: \(error.localizedDescription)")
+                    print("=== createCharacterWithEnhancedData END (with error) ===\n")
+                }
+            }
+        } catch {
+            print("\n❌ Failed to save request: \(error)")
+            print("Error details: \(error.localizedDescription)")
+            print("=== createCharacterWithEnhancedData END (with error) ===\n")
+        }
     }
     
     // Original simple creation method (if still needed for backward compatibility)
@@ -198,3 +265,4 @@ struct CreateCharacterView: View {
         }
     }
 }
+

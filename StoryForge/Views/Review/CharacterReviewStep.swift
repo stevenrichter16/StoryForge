@@ -1,16 +1,15 @@
-//
-//  CharacterReviewStep.swift
-//  StoryForge
-//
-//  Created by Steven Richter on 5/29/25.
-//
+import SwiftUI
 
 import SwiftUI
 
-// MARK: - Character Review Step
 struct CharacterReviewStep: View {
     let characterData: CharacterCreationData
     let selectedTraits: [String: Set<CharacterTrait>]
+    
+    // Define hasTraits as a computed property
+    private var hasTraits: Bool {
+        selectedTraits.values.contains(where: { !$0.isEmpty })
+    }
     
     var body: some View {
         ScrollView {
@@ -46,16 +45,16 @@ struct CharacterReviewStep: View {
                         }
                     }
                     
-                    // Check if there are any selected traits
-                    if selectedTraits.values.contains(where: { !$0.isEmpty }) {
+                    // Selected Traits
+                    if hasTraits {
                         Divider()
                         
-                        // Selected Traits
                         ReviewSection(title: "Character Traits", icon: "sparkles") {
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 16) {
                                 ForEach(CharacterTraitDatabase.categories) { category in
-                                    if let traits = selectedTraits[category.name], !traits.isEmpty {
+                                    if let categoryTraits = selectedTraits[category.name], !categoryTraits.isEmpty {
                                         VStack(alignment: .leading, spacing: 8) {
+                                            // Category header
                                             HStack {
                                                 Image(systemName: category.icon)
                                                     .font(.caption)
@@ -66,8 +65,9 @@ struct CharacterReviewStep: View {
                                                     .foregroundColor(.secondary)
                                             }
                                             
+                                            // Trait pills
                                             FlowLayout(spacing: 6) {
-                                                ForEach(Array(traits)) { trait in
+                                                ForEach(Array(categoryTraits), id: \.id) { trait in
                                                     TraitPill(text: trait.name)
                                                 }
                                             }
@@ -81,7 +81,6 @@ struct CharacterReviewStep: View {
                     if !characterData.additionalNotes.isEmpty {
                         Divider()
                         
-                        // Additional Notes
                         ReviewSection(title: "Additional Notes", icon: "note.text") {
                             Text(characterData.additionalNotes)
                                 .font(.body)
@@ -99,7 +98,7 @@ struct CharacterReviewStep: View {
                     .padding(.horizontal)
                 
                 // Trait Summary Stats
-                if selectedTraits.values.contains(where: { !$0.isEmpty }) {
+                if hasTraits {
                     TraitSummaryCard(selectedTraits: selectedTraits)
                         .padding(.horizontal)
                 }
