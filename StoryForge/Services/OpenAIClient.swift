@@ -60,9 +60,17 @@ actor OpenAIClient {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        if httpResponse.statusCode == 401 {
+            throw APIError.invalidAPIKey
+        }
+        
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: errorMessage)
         }
         
         struct Choice: Codable {
@@ -74,16 +82,46 @@ actor OpenAIClient {
         
         struct ChatResponse: Codable {
             let choices: [Choice]
+            struct Error: Codable {
+                let message: String
+                let type: String
+            }
+            let error: Error?
         }
         
         let chatResponse = try JSONDecoder().decode(ChatResponse.self, from: data)
         
+        if let error = chatResponse.error {
+            throw APIError.openAIError(message: error.message, type: error.type)
+        }
+        
         guard let content = chatResponse.choices.first?.message.content else {
-            throw NSError(domain: "OpenAI", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "No content in response"
-            ])
+            throw APIError.noContent
         }
         
         return content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    enum APIError: LocalizedError {
+        case invalidResponse
+        case invalidAPIKey
+        case httpError(statusCode: Int, message: String)
+        case openAIError(message: String, type: String)
+        case noContent
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse:
+                return "Invalid response from server"
+            case .invalidAPIKey:
+                return "Invalid API key. Please check your Secrets.plist file."
+            case .httpError(let statusCode, let message):
+                return "HTTP Error \(statusCode): \(message)"
+            case .openAIError(let message, _):
+                return "OpenAI Error: \(message)"
+            case .noContent:
+                return "No content in response"
+            }
+        }
     }
 }

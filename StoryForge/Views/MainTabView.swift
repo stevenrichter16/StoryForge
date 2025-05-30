@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct MainTabView: View {
     @EnvironmentObject private var dataManager: DataManager
     @EnvironmentObject private var characterService: CharacterService
@@ -21,8 +23,8 @@ struct MainTabView: View {
                     CreateCharacterView()
                 case 1:
                     GalleryView()
-//                case 2:
-//                    FavoritesView()
+                case 2:
+                    FavoritesView()
                 default:
                     CreateCharacterView()
                 }

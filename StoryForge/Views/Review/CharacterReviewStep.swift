@@ -46,22 +46,30 @@ struct CharacterReviewStep: View {
                         }
                     }
                     
-                    Divider()
-                    
-                    // Selected Traits
-                    ReviewSection(title: "Character Traits", icon: "sparkles") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(CharacterTraitDatabase.categories) { category in
-                                if let traits = selectedTraits[category.name], !traits.isEmpty {
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        Text(category.name)
-                                            .font(.subheadline)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.secondary)
-                                        
-                                        FlowLayout(spacing: 6) {
-                                            ForEach(Array(traits)) { trait in
-                                                TraitPill(text: trait.name)
+                    // Check if there are any selected traits
+                    if selectedTraits.values.contains(where: { !$0.isEmpty }) {
+                        Divider()
+                        
+                        // Selected Traits
+                        ReviewSection(title: "Character Traits", icon: "sparkles") {
+                            VStack(alignment: .leading, spacing: 12) {
+                                ForEach(CharacterTraitDatabase.categories) { category in
+                                    if let traits = selectedTraits[category.name], !traits.isEmpty {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack {
+                                                Image(systemName: category.icon)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                                Text(category.name)
+                                                    .font(.subheadline)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            
+                                            FlowLayout(spacing: 6) {
+                                                ForEach(Array(traits)) { trait in
+                                                    TraitPill(text: trait.name)
+                                                }
                                             }
                                         }
                                     }
@@ -89,6 +97,12 @@ struct CharacterReviewStep: View {
                 // AI Generation Preview
                 AIGenerationPreview()
                     .padding(.horizontal)
+                
+                // Trait Summary Stats
+                if selectedTraits.values.contains(where: { !$0.isEmpty }) {
+                    TraitSummaryCard(selectedTraits: selectedTraits)
+                        .padding(.horizontal)
+                }
             }
             .padding(.bottom, 100)
         }

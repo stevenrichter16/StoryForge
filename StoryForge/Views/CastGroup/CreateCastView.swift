@@ -7,13 +7,14 @@
 
 import SwiftUI
 
-// MARK: - Create Cast View
 struct CreateCastView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var dataManager: DataManager
     @State private var castName = ""
     @State private var castDescription = ""
     @State private var selectedCharacterIds: Set<String> = []
+    @State private var showingError = false
+    @State private var errorMessage = ""
     
     var body: some View {
         NavigationStack {
@@ -59,6 +60,11 @@ struct CreateCastView: View {
                     .disabled(castName.isEmpty)
                 }
             }
+            .alert("Error", isPresented: $showingError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
@@ -70,9 +76,11 @@ struct CreateCastView: View {
         )
         
         do {
-            dataManager.allCasts.append(cast)
-            // In real app, save to model context
+            try dataManager.save(cast: cast)
             dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
         }
     }
 }

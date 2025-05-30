@@ -157,3 +157,85 @@ class DataManager: ObservableObject {
         objectWillChange.send()
     }
 }
+
+// Add these methods to DataManager.swift
+extension DataManager {
+    // MARK: - Cast Operations
+    func save(cast: Cast) throws {
+        modelContext.insert(cast)
+        try modelContext.save()
+        
+        if !allCasts.contains(where: { $0.id == cast.id }) {
+            allCasts.insert(cast, at: 0)
+        }
+        
+        objectWillChange.send()
+    }
+    
+    func delete(cast: Cast) throws {
+        // Remove cast ID from all characters
+        for characterId in cast.characterIds {
+            if let request = allRequests.first(where: { $0.id == characterId }) {
+                request.castId = nil
+            }
+        }
+        
+        modelContext.delete(cast)
+        try modelContext.save()
+        
+        allCasts.removeAll { $0.id == cast.id }
+        objectWillChange.send()
+    }
+    
+    func update(cast: Cast) throws {
+        cast.modifiedAt = Date()
+        try modelContext.save()
+        objectWillChange.send()
+    }
+    
+    // MARK: - Relationship Operations
+    func save(relationship: CharacterRelationship) throws {
+        modelContext.insert(relationship)
+        try modelContext.save()
+        
+        if !allRelationships.contains(where: { $0.id == relationship.id }) {
+            allRelationships.append(relationship)
+        }
+        
+        // Update the character's relationship IDs
+        if let fromProfile = allProfiles.first(where: { $0.id == relationship.fromCharacterId }) {
+            if !fromProfile.relationshipIds.contains(relationship.id) {
+                fromProfile.relationshipIds.append(relationship.id)
+            }
+        }
+        
+        if let toProfile = allProfiles.first(where: { $0.id == relationship.toCharacterId }) {
+            if !toProfile.relationshipIds.contains(relationship.id) {
+                toProfile.relationshipIds.append(relationship.id)
+            }
+        }
+        
+        try modelContext.save()
+        objectWillChange.send()
+    }
+    
+    func delete(relationship: CharacterRelationship) throws {
+        // Remove relationship ID from characters
+        for profile in allProfiles {
+            profile.relationshipIds.removeAll { $0 == relationship.id }
+        }
+        
+        modelContext.delete(relationship)
+        try modelContext.save()
+        
+        allRelationships.removeAll { $0.id == relationship.id }
+        objectWillChange.send()
+    }
+    
+    func relationships(for profile: CharacterProfile) -> [CharacterRelationship] {
+        return allRelationships.filter { relationship in
+            relationship.fromCharacterId == profile.id ||
+            relationship.toCharacterId == profile.id
+        }
+    }
+}

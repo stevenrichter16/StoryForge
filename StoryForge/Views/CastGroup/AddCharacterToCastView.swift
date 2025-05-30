@@ -12,6 +12,8 @@ struct AddCharacterToCastView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var dataManager: DataManager
     @State private var selectedCharacterIds: Set<String> = []
+    @State private var showingError = false
+    @State private var errorMessage = ""
     
     // Get available characters (not already in this cast)
     private var availableCharacters: [CharacterProfile] {
@@ -77,17 +79,24 @@ struct AddCharacterToCastView: View {
                     .disabled(selectedCharacterIds.isEmpty)
                 }
             }
+            .alert("Error", isPresented: $showingError) {
+                Button("OK") { }
+            } message: {
+                Text(errorMessage)
+            }
         }
     }
     
     private func addCharactersToCast() {
         // Add selected characters to the cast
         cast.characterIds.append(contentsOf: selectedCharacterIds)
-        cast.modifiedAt = Date()
         
-        // In a real app, you'd save this to the model context
-        // try? dataManager.modelContext.save()
-        
-        dismiss()
+        do {
+            try dataManager.update(cast: cast)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
     }
 }
