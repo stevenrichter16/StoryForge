@@ -1,20 +1,18 @@
-//
-//  StoryForgeApp.swift
-//  StoryForge
-//
-//  Created by Steven Richter on 5/28/25.
-//
-
-import SwiftUI
 import SwiftData
-
+import SwiftUI
 @main
 struct StoryForgeApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            CharacterRequest.self,
+            CharacterProfile.self,
+            Cast.self,
+            CharacterRelationship.self
         ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+        let modelConfiguration = ModelConfiguration(
+            schema: schema,
+            isStoredInMemoryOnly: false
+        )
 
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
@@ -25,7 +23,15 @@ struct StoryForgeApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            let context = sharedModelContainer.mainContext
+            let dataManager = DataManager(context: context)
+            let characterService = CharacterService(dataManager: dataManager)
+            let appState = AppState()
+            
+            MainTabView()
+                .environmentObject(dataManager)
+                .environmentObject(characterService)
+                .environmentObject(appState)
         }
         .modelContainer(sharedModelContainer)
     }
