@@ -1,13 +1,10 @@
 //
-//  CreateCardView.swift
+//  CreateCharacterView.swift
 //  StoryForge
 //
 //  Created by Steven Richter on 5/28/25.
 //
 
-import SwiftUI
-
-// MARK: - Views/Create/CreateCharacterView.swift
 import SwiftUI
 
 struct CreateCharacterView: View {
@@ -17,6 +14,9 @@ struct CreateCharacterView: View {
     @State private var selectedGenre: Genre = Genre.all[0]
     @State private var selectedArchetype: CharacterArchetype = CharacterArchetype.all[0]
     @State private var selectedComplexity: ComplexityLevel = ComplexityLevel.all[1]
+    @State private var isGeneratingCharacter = false
+    @State private var generationError: String?
+    @State private var showingError = false
     
     var body: some View {
         NavigationStack {
@@ -72,6 +72,12 @@ struct CreateCharacterView: View {
                             RecentCreationsSection()
                                 .padding(.horizontal)
                         }
+                        
+                        // Generation status
+                        if isGeneratingCharacter {
+                            GenerationStatusCard()
+                                .padding(.horizontal)
+                        }
                     }
                     .padding(.vertical)
                 }
@@ -104,6 +110,8 @@ struct CreateCharacterView: View {
                             )
                             .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
                         }
+                        .disabled(isGeneratingCharacter)
+                        .opacity(isGeneratingCharacter ? 0.6 : 1.0)
                         .padding(.trailing, 24)
                         .padding(.bottom, 100)
                     }
@@ -122,78 +130,60 @@ struct CreateCharacterView: View {
                     }
                 )
             }
+            .alert("Error Creating Character", isPresented: $showingError) {
+                Button("OK") { }
+            } message: {
+                Text(generationError ?? "An unknown error occurred")
+            }
+        }
+        .onReceive(characterService.$isGenerating) { isGenerating in
+            isGeneratingCharacter = isGenerating
+        }
+        .onReceive(characterService.$generationError) { error in
+            if let error = error {
+                generationError = error
+                showingError = true
+            }
         }
     }
     
     // MARK: - Helper Methods
-    // Also add this helper method if it's missing:
-    private func extractTraitNames(from traitDict: [String: Set<CharacterTrait>]) -> [String] {
-        var allTraits: [String] = []
-        
-        for (categoryName, traits) in traitDict {
-            let traitNames = traits.map { $0.name }
-            allTraits.append(contentsOf: traitNames)
-            
-            // Debug logging
-            if !traitNames.isEmpty {
-                print("  Extracting from \(categoryName): \(traitNames.joined(separator: ", "))")
-            }
-        }
-        
-        return allTraits
-    }
-    
     private func applyTemplate(_ template: CharacterTemplate) {
         selectedGenre = template.genre
         selectedArchetype = template.archetype
         selectedComplexity = template.complexity
     }
     
-
     private func createCharacterWithEnhancedData(_ characterData: CharacterCreationData) {
-        // Debug logging at the start
-        print("=== createCharacterWithEnhancedData START ===")
-        print("Character Name: \(characterData.name)")
-        print("Selected Traits from characterData:")
-        for (category, traits) in characterData.traits {
-            if !traits.isEmpty {
-                print("  \(category): \(traits.map { $0.name }.joined(separator: ", "))")
-            }
+        // Debug logging
+        print("\n=== createCharacterWithEnhancedData START ===")
+        characterData.debugPrintTraits()
+        
+        // Validate input
+        guard !characterData.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            generationError = "Character name cannot be empty"
+            showingError = true
+            return
         }
         
-        // Build a more detailed prompt that includes trait information
-        var fullPrompt = characterData.buildPrompt()
-        print("\nBase Prompt Generated:")
-        print(fullPrompt)
-        
-        // Extract personality traits specifically for the AI
-        let personalityTraits = characterData.traits["Core Personality"]?.map { $0.name } ?? []
-        if !personalityTraits.isEmpty {
-            fullPrompt += "\n\nCore personality traits: \(personalityTraits.joined(separator: ", "))"
-            print("\nPersonality traits added to prompt: \(personalityTraits)")
-        } else {
-            print("\n⚠️ No Core Personality traits found!")
-        }
-        
-        // Extract all trait names
-        let allTraitNames = extractTraitNames(from: characterData.traits)
-        print("\nAll extracted trait names: \(allTraitNames)")
-        
-        // Create the character request with all the data
+        // Create the character request
         let request = CharacterRequest(
-            userPrompt: fullPrompt,
+            userPrompt: characterData.buildPrompt(),
             genre: characterData.genre,
             archetype: characterData.archetype,
             complexityLevel: characterData.complexity,
             ageRange: characterData.age.isEmpty ? nil : characterData.age,
             timePeriod: nil,
-            additionalTraits: allTraitNames
+            additionalTraits: characterData.getAllTraitNames()
         )
         
         print("\nCharacterRequest created:")
         print("  - Genre: \(request.genre.name)")
         print("  - Archetype: \(request.archetype.name)")
-        print("  - Additional Traits: \(request.additionalTraits)")
+        print("  - Additional Traits: \(request.additionalTraits.count) traits")
+        
+        // Set generating state
+        isGeneratingCharacter = true
         
         do {
             try dataManager.save(request: request)
@@ -202,67 +192,119 @@ struct CreateCharacterView: View {
             Task {
                 do {
                     print("\n🔄 Starting character generation...")
-                    let profile = try await characterService.generateCharacter(request: request)
                     
-                    print("\n📝 Profile generated:")
+                    // Use the new method that preserves user data
+                    let profile = try await characterService.generateCharacterWithUserData(
+                        request: request,
+                        characterData: characterData
+                    )
+                    
+                    print("\n✅ Character created successfully:")
                     print("  - Name: \(profile.name)")
-                    print("  - Personality Traits from AI: \(profile.personalityTraits)")
+                    print("  - Age: \(profile.age ?? 0)")
+                    print("  - Occupation: \(profile.occupation)")
+                    print("  - Personality Traits: \(profile.personalityTraits)")
+                    print("  - All Traits: \(profile.allTraitNames.count) traits in \(profile.allSelectedTraits.count) categories")
                     
-                    // Update the profile with the selected personality traits
-                    if let personalityTraits = characterData.traits["Core Personality"], !personalityTraits.isEmpty {
-                        let originalTraits = profile.personalityTraits
-                        profile.personalityTraits = Array(personalityTraits.map { $0.name })
+                    // Update UI on main thread
+                    await MainActor.run {
+                        isGeneratingCharacter = false
                         
-                        print("\n🔄 Updating personality traits:")
-                        print("  - Original from AI: \(originalTraits)")
-                        print("  - Replaced with user selection: \(profile.personalityTraits)")
+                        // Refresh data to show new character
+                        dataManager.loadData()
                         
-                        // BUG FIX: You need to save the profile, not the request again
-                        try dataManager.save(profile: profile)
-                        print("✅ Profile updated and saved")
-                    } else {
-                        print("\n⚠️ No Core Personality traits to update")
+                        // Optional: Show success feedback
+                        HapticFeedback.success()
                     }
                     
-                    print("\n✅ Character created successfully with traits: \(profile.personalityTraits)")
                     print("=== createCharacterWithEnhancedData END ===\n")
                     
                 } catch {
                     print("\n❌ Failed to generate character: \(error)")
                     print("Error details: \(error.localizedDescription)")
+                    
+                    await MainActor.run {
+                        isGeneratingCharacter = false
+                        generationError = error.localizedDescription
+                        showingError = true
+                        
+                        // Remove the failed request
+                        try? dataManager.delete(request: request)
+                    }
+                    
                     print("=== createCharacterWithEnhancedData END (with error) ===\n")
                 }
             }
         } catch {
             print("\n❌ Failed to save request: \(error)")
             print("Error details: \(error.localizedDescription)")
-            print("=== createCharacterWithEnhancedData END (with error) ===\n")
-        }
-    }
-    
-    // Original simple creation method (if still needed for backward compatibility)
-    private func createCharacter(prompt: String, traits: [String]) {
-        let request = CharacterRequest(
-            userPrompt: prompt,
-            genre: selectedGenre,
-            archetype: selectedArchetype,
-            complexityLevel: selectedComplexity,
-            additionalTraits: traits
-        )
-        
-        do {
-            try dataManager.save(request: request)
             
-            Task {
-                do {
-                    let _ = try await characterService.generateCharacter(request: request)
-                } catch {
-                    print("Failed to generate character: \(error)")
-                }
-            }
-        } catch {
-            print("Failed to save request: \(error)")
+            isGeneratingCharacter = false
+            generationError = error.localizedDescription
+            showingError = true
+            
+            print("=== createCharacterWithEnhancedData END (with error) ===\n")
         }
     }
 }
 
+// MARK: - Supporting Views
+struct GenerationStatusCard: View {
+    @State private var animationPhase = 0.0
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Animated icon
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.1))
+                    .frame(width: 50, height: 50)
+                
+                Image(systemName: "sparkles")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+                    .rotationEffect(.degrees(animationPhase))
+                    .animation(
+                        .linear(duration: 2)
+                        .repeatForever(autoreverses: false),
+                        value: animationPhase
+                    )
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Creating Character...")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                Text("AI is generating your character's details")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.05), radius: 5, y: 2)
+        .onAppear {
+            animationPhase = 360
+        }
+    }
+}
+
+// MARK: - Haptic Feedback Helper
+struct HapticFeedback {
+    static func success() {
+        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+        impactFeedback.impactOccurred()
+    }
+    
+    static func error() {
+        let notificationFeedback = UINotificationFeedbackGenerator()
+        notificationFeedback.notificationOccurred(.error)
+    }
+}

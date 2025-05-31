@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+import SwiftUI
+
 struct CharacterCard: View {
     let profile: CharacterProfile
     let request: CharacterRequest
@@ -86,7 +88,7 @@ struct CharacterCard: View {
             if !profile.personalityTraits.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(profile.personalityTraits.prefix(5), id: \.self) { trait in
-                        TraitPill(text: trait)
+                        TraitPill(text: trait, color: .blue)
                     }
                 }
             }

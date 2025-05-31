@@ -36,11 +36,30 @@ class CharacterProfile: Identifiable {
     // Relationships
     var relationshipIds: [String] = []
     
+    // ALL TRAITS STORAGE - NEW
+    var allSelectedTraits: [String: [String]] = [:]
+    
     // Metadata
     var isFavorite: Bool
     var hasAnimated: Bool
     var dateCreated: Date
     var lastModified: Date
+    
+    // Computed properties for traits
+    var traitsByCategory: [(category: String, traits: [String])] {
+        allSelectedTraits
+            .sorted { $0.key < $1.key }
+            .map { (category: $0.key, traits: $0.value) }
+    }
+    
+    var allTraitNames: [String] {
+        allSelectedTraits.values.flatMap { $0 }
+    }
+    
+    func hasTraits(in category: String) -> Bool {
+        guard let traits = allSelectedTraits[category] else { return false }
+        return !traits.isEmpty
+    }
     
     init(
         id: String = UUID().uuidString,
@@ -78,5 +97,6 @@ class CharacterProfile: Identifiable {
         self.hasAnimated = hasAnimated
         self.dateCreated = .now
         self.lastModified = .now
+        self.allSelectedTraits = [:]
     }
 }

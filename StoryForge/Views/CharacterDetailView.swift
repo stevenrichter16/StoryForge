@@ -33,10 +33,12 @@ struct CharacterDetailView: View {
                         case 0:
                             PersonalityView(profile: profile)
                         case 1:
-                            BackstoryView(profile: profile)
+                            AllTraitsView(profile: profile)
                         case 2:
-                            RelationshipsView(profile: profile)
+                            BackstoryView(profile: profile)
                         case 3:
+                            RelationshipsView(profile: profile)
+                        case 4:
                             StoryNotesView(profile: profile)
                         default:
                             PersonalityView(profile: profile)
@@ -71,7 +73,7 @@ struct CharacterDetailView: View {
                         }
                         
                         Button {
-                            // Share action
+                            shareCharacter()
                         } label: {
                             Label("Share", systemImage: "person.crop.circle.badge.plus")
                         }
@@ -79,7 +81,7 @@ struct CharacterDetailView: View {
                         Divider()
                         
                         Button(role: .destructive) {
-                            // Delete action
+                            deleteCharacter()
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -104,4 +106,41 @@ struct CharacterDetailView: View {
             print("Failed to toggle favorite: \(error)")
         }
     }
+    
+    private func shareCharacter() {
+        // TODO: Implement share functionality
+        let activityItems = [
+            "Check out my character: \(profile.name)",
+            "\(profile.tagline)",
+            "Created with StoryForge"
+        ]
+        
+        let activityController = UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            window.rootViewController?.present(activityController, animated: true)
+        }
+    }
+    
+    private func deleteCharacter() {
+        do {
+            // Delete the profile
+            try dataManager.delete(profile: profile)
+            
+            // Delete the associated request if needed
+            if let request = dataManager.request(for: profile) {
+                try dataManager.delete(request: request)
+            }
+            
+            dismiss()
+        } catch {
+            print("Failed to delete character: \(error)")
+        }
+    }
 }
+
+

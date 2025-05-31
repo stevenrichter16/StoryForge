@@ -74,7 +74,7 @@ struct ReviewStep: View {
                         ReviewSection(title: "Personality Traits", icon: "sparkles") {
                             FlowLayout(spacing: 6) {
                                 ForEach(traits, id: \.self) { trait in
-                                    TraitPill(text: trait)
+                                    TraitPill(text: trait, color: .blue)
                                 }
                             }
                         }

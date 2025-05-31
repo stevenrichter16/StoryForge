@@ -10,7 +10,7 @@ import SwiftUI
 // MARK: - Tab Bar
 struct CharacterDetailTabBar: View {
     @Binding var selectedTab: Int
-    let tabs = ["Personality", "Backstory", "Relationships", "Notes"]
+    let tabs = ["Personality", "Traits", "Backstory", "Relationships", "Notes"]
     
     var body: some View {
         HStack(spacing: 0) {
