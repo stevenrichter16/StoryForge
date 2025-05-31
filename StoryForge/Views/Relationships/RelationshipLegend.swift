@@ -7,7 +7,8 @@
 
 import SwiftUI
 
-struct RelationshipLegend: View {
+// MARK: - Enhanced Relationship Legend
+struct EnhancedRelationshipLegend: View {
     let types: [String]
     
     var body: some View {
@@ -15,25 +16,29 @@ struct RelationshipLegend: View {
             Text("Relationship Types")
                 .font(.caption)
                 .fontWeight(.semibold)
-                .foregroundColor(.secondary)
+                .foregroundColor(.white)
             
-            HStack(spacing: 16) {
-                ForEach(types, id: \.self) { type in
-                    HStack(spacing: 4) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                ForEach(types.sorted(), id: \.self) { type in
+                    HStack(spacing: 6) {
                         Circle()
                             .fill(colorForRelationshipType(type))
                             .frame(width: 12, height: 12)
                         
                         Text(type)
                             .font(.caption2)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
+                        
+                        Spacer()
                     }
                 }
             }
         }
         .padding()
-        .background(.ultraThinMaterial)
-        .cornerRadius(12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.ultraThinMaterial)
+        )
     }
     
     private func colorForRelationshipType(_ type: String) -> Color {

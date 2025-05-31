@@ -102,10 +102,12 @@ struct RelationshipsView: View {
                 )
             }
         }
+        // Use the optimized web view instead
         .sheet(isPresented: $showingRelationshipWeb) {
-            EnhancedFullRelationshipWebView(centerProfile: profile)
+            OptimizedFullRelationshipWebView(centerProfile: profile)
         }
     }
+    
     
     private var twoWayRelationships: Int {
         relationships.filter { relationship in
