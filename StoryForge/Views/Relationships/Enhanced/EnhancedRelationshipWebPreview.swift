@@ -2,15 +2,7 @@
 //  EnhancedRelationshipWebPreview.swift
 //  StoryForge
 //
-//  Created by Steven Richter on 5/31/25.
-//
-
-
-//
-//  EnhancedRelationshipWebPreview.swift
-//  StoryForge
-//
-//  Created by Assistant on 5/31/25.
+//  Updated to use fixed components
 //
 
 import SwiftUI
@@ -66,7 +58,7 @@ struct EnhancedRelationshipWebPreview: View {
                             relationship: item.relationship,
                             from: CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2),
                             to: positionForRelationship(index, in: geometry.size),
-                            isHighlighted: hoveredCharacterId == item.character.id || 
+                            isHighlighted: hoveredCharacterId == item.character.id ||
                                          selectedCharacterId == item.character.id,
                             zoom: 1.0
                         )
@@ -80,13 +72,17 @@ struct EnhancedRelationshipWebPreview: View {
                         isSelected: selectedCharacterId == profile.id,
                         isHovered: false,
                         relationshipCount: relationships.count,
-                        zoom: 1.0
-                    )
-                    .onTapGesture {
-                        withAnimation {
-                            selectedCharacterId = profile.id
+                        zoom: 1.0,
+                        onTap: {
+                            withAnimation {
+                                if selectedCharacterId == profile.id {
+                                    selectedCharacterId = nil
+                                } else {
+                                    selectedCharacterId = profile.id
+                                }
+                            }
                         }
-                    }
+                    )
                     
                     // Related characters
                     ForEach(Array(relationships.enumerated()), id: \.element.character.id) { index, item in
@@ -97,13 +93,17 @@ struct EnhancedRelationshipWebPreview: View {
                             isSelected: selectedCharacterId == item.character.id,
                             isHovered: hoveredCharacterId == item.character.id,
                             relationshipCount: 1,
-                            zoom: 1.0
-                        )
-                        .onTapGesture {
-                            withAnimation {
-                                selectedCharacterId = item.character.id
+                            zoom: 1.0,
+                            onTap: {
+                                withAnimation {
+                                    if selectedCharacterId == item.character.id {
+                                        selectedCharacterId = nil
+                                    } else {
+                                        selectedCharacterId = item.character.id
+                                    }
+                                }
                             }
-                        }
+                        )
                         .onHover { isHovered in
                             hoveredCharacterId = isHovered ? item.character.id : nil
                         }
@@ -145,7 +145,7 @@ struct GridPattern: Shape {
             path.addLine(to: CGPoint(x: x, y: rect.height))
         }
         
-        // Horizontal lines  
+        // Horizontal lines
         for y in stride(from: 0, to: rect.height, by: gridSize) {
             path.move(to: CGPoint(x: 0, y: y))
             path.addLine(to: CGPoint(x: rect.width, y: y))

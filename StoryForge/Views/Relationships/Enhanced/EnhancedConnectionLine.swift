@@ -2,15 +2,7 @@
 //  EnhancedConnectionLine.swift
 //  StoryForge
 //
-//  Created by Steven Richter on 5/31/25.
-//
-
-
-//
-//  EnhancedConnectionLine.swift
-//  StoryForge
-//
-//  Created by Assistant on 5/31/25.
+//  Fixed animation restart issue
 //
 
 import SwiftUI
@@ -96,11 +88,7 @@ struct EnhancedConnectionLine: View {
                     connectionColor,
                     style: StrokeStyle(lineWidth: lineWidth + 2, lineCap: .round)
                 )
-                .onAppear {
-                    withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                        animationProgress = 1.3
-                    }
-                }
+                .opacity(isHighlighted ? 1 : 0) // Add opacity to force re-render
             }
             
             // Relationship type label (for highlighted connections)
@@ -124,6 +112,20 @@ struct EnhancedConnectionLine: View {
                         y: (from.y + to.y) / 2
                     )
                     .scaleEffect(1.0 / zoom)
+            }
+        }
+        .onChange(of: isHighlighted) { newValue in
+            if newValue {
+                // Reset and restart animation when highlighted
+                animationProgress = 0
+                withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                    animationProgress = 1.3
+                }
+            } else {
+                // Stop animation when not highlighted
+                withAnimation(.linear(duration: 0.1)) {
+                    animationProgress = 0
+                }
             }
         }
     }

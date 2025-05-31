@@ -2,15 +2,7 @@
 //  UnifiedCharacterNode.swift
 //  StoryForge
 //
-//  Created by Steven Richter on 5/31/25.
-//
-
-
-//
-//  UnifiedCharacterNode.swift
-//  StoryForge
-//
-//  Created by Assistant on 5/31/25.
+//  Fixed to improve tap detection
 //
 
 import SwiftUI
@@ -24,6 +16,7 @@ struct UnifiedCharacterNode: View {
     let isHovered: Bool
     let relationshipCount: Int
     let zoom: CGFloat
+    let onTap: (() -> Void)?
     
     @EnvironmentObject private var dataManager: DataManager
     
@@ -87,8 +80,22 @@ struct UnifiedCharacterNode: View {
         return baseSize * scaleFactor / zoomAdjustment
     }
     
+    private var tapTargetSize: CGFloat {
+        // Ensure a minimum tap target size of 44 points
+        return max(nodeSize, 44 / zoom)
+    }
+    
     var body: some View {
         ZStack {
+            // Invisible tap target for better hit detection
+            Circle()
+                .fill(Color.clear)
+                .frame(width: tapTargetSize, height: tapTargetSize)
+                .contentShape(Circle())
+                .onTapGesture {
+                    onTap?()
+                }
+            
             // Glow effect for center characters
             if context.showsGlow {
                 Circle()
@@ -106,6 +113,7 @@ struct UnifiedCharacterNode: View {
                     )
                     .frame(width: nodeSize * 2, height: nodeSize * 2)
                     .blur(radius: 3)
+                    .allowsHitTesting(false)
             }
             
             // Selection ring
@@ -115,6 +123,7 @@ struct UnifiedCharacterNode: View {
                     .frame(width: nodeSize + 16, height: nodeSize + 16)
                     .scaleEffect(1.0)
                     .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isSelected)
+                    .allowsHitTesting(false)
             }
             
             // Main node
@@ -136,12 +145,14 @@ struct UnifiedCharacterNode: View {
                         .stroke(Color.white.opacity(0.8), lineWidth: 2)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+                .allowsHitTesting(false)
             
             // Character initials
             Text(profile.name.prefix(2).uppercased())
                 .font(.system(size: nodeSize * 0.35, weight: .bold))
                 .foregroundColor(.white)
                 .shadow(color: .black.opacity(0.5), radius: 2)
+                .allowsHitTesting(false)
             
             // Relationship count badge
             if context.showsRelationshipBadge && relationshipCount > 0 {
@@ -159,6 +170,7 @@ struct UnifiedCharacterNode: View {
                         .foregroundColor(.white)
                 }
                 .offset(x: nodeSize * 0.4, y: -nodeSize * 0.4)
+                .allowsHitTesting(false)
             }
             
             // Character name label (conditional)
@@ -181,6 +193,7 @@ struct UnifiedCharacterNode: View {
                                 )
                         )
                         .offset(y: nodeSize * 0.7)
+                        .allowsHitTesting(false)
                 }
                 .frame(width: nodeSize, height: nodeSize)
                 .transition(.opacity.combined(with: .scale))

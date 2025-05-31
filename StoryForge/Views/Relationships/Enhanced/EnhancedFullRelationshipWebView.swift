@@ -2,15 +2,7 @@
 //  EnhancedFullRelationshipWebView.swift
 //  StoryForge
 //
-//  Created by Steven Richter on 5/31/25.
-//
-
-
-//
-//  EnhancedFullRelationshipWebView.swift
-//  StoryForge
-//
-//  Created by Assistant on 5/31/25.
+//  Fixed node selection and animation issues
 //
 
 import SwiftUI
@@ -28,6 +20,7 @@ struct EnhancedFullRelationshipWebView: View {
     @State private var showingCharacterInfo = false
     @State private var nodePositions: [String: CGPoint] = [:]
     @State private var isDragging = false
+    @State private var gestureOffset: CGSize = .zero
     
     private var allRelationships: [CharacterRelationship] {
         dataManager.allRelationships.filter { relationship in
@@ -66,10 +59,19 @@ struct EnhancedFullRelationshipWebView: View {
                         ForEach(allRelationships, id: \.id) { relationship in
                             if let fromPos = nodePositions[relationship.fromCharacterId],
                                let toPos = nodePositions[relationship.toCharacterId] {
+                                let adjustedFromPos = CGPoint(
+                                    x: fromPos.x * zoom + offset.width + gestureOffset.width,
+                                    y: fromPos.y * zoom + offset.height + gestureOffset.height
+                                )
+                                let adjustedToPos = CGPoint(
+                                    x: toPos.x * zoom + offset.width + gestureOffset.width,
+                                    y: toPos.y * zoom + offset.height + gestureOffset.height
+                                )
+                                
                                 EnhancedConnectionLine(
                                     relationship: relationship,
-                                    from: fromPos,
-                                    to: toPos,
+                                    from: adjustedFromPos,
+                                    to: adjustedToPos,
                                     isHighlighted: isRelationshipHighlighted(relationship),
                                     zoom: zoom
                                 )
@@ -79,29 +81,29 @@ struct EnhancedFullRelationshipWebView: View {
                         // Character nodes
                         ForEach(allConnectedProfiles, id: \.id) { profile in
                             if let position = nodePositions[profile.id] {
+                                let adjustedPosition = CGPoint(
+                                    x: position.x * zoom + offset.width + gestureOffset.width,
+                                    y: position.y * zoom + offset.height + gestureOffset.height
+                                )
+                                
                                 UnifiedCharacterNode(
                                     profile: profile,
-                                    position: position,
+                                    position: adjustedPosition,
                                     context: .fullWeb(isCenterCharacter: profile.id == centerProfile.id),
                                     isSelected: selectedCharacterId == profile.id,
                                     isHovered: hoveredCharacterId == profile.id,
                                     relationshipCount: relationshipCount(for: profile),
-                                    zoom: zoom
-                                )
-                                .onTapGesture {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                        selectedCharacterId = selectedCharacterId == profile.id ? nil : profile.id
-                                        showingCharacterInfo = selectedCharacterId != nil
+                                    zoom: zoom,
+                                    onTap: {
+                                        handleNodeTap(profile.id)
                                     }
-                                }
+                                )
                                 .onHover { isHovered in
                                     hoveredCharacterId = isHovered ? profile.id : nil
                                 }
                             }
                         }
                     }
-                    .scaleEffect(zoom)
-                    .offset(offset)
                     .onAppear {
                         calculateNodePositions(in: geometry.size)
                     }
@@ -117,10 +119,13 @@ struct EnhancedFullRelationshipWebView: View {
                             },
                         DragGesture()
                             .onChanged { value in
-                                offset = value.translation
+                                gestureOffset = value.translation
                                 isDragging = true
                             }
-                            .onEnded { _ in
+                            .onEnded { value in
+                                offset.width += value.translation.width
+                                offset.height += value.translation.height
+                                gestureOffset = .zero
                                 isDragging = false
                             }
                     )
@@ -134,6 +139,7 @@ struct EnhancedFullRelationshipWebView: View {
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                 zoom = 1.0
                                 offset = .zero
+                                gestureOffset = .zero
                                 selectedCharacterId = nil
                                 showingCharacterInfo = false
                             }
@@ -235,6 +241,20 @@ struct EnhancedFullRelationshipWebView: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func handleNodeTap(_ profileId: String) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            if selectedCharacterId == profileId {
+                // Deselect if already selected
+                selectedCharacterId = nil
+                showingCharacterInfo = false
+            } else {
+                // Select new character
+                selectedCharacterId = profileId
+                showingCharacterInfo = true
+            }
+        }
+    }
     
     private func calculateNodePositions(in size: CGSize) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
