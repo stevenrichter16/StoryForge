@@ -8,15 +8,32 @@
 import SwiftUI
 
 // MARK: - Enhanced Cast Relationship Web View
+// MARK: - Enhanced Cast Relationship Web View
 struct CastRelationshipView: View {
     let cast: Cast
     @EnvironmentObject private var dataManager: DataManager
     @State private var selectedCharacterId: String?
     @State private var hoveredRelationshipId: String?
-    @State private var zoom: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
     @State private var showingLegend = true
     @State private var showingAddRelationship = false
+    @State private var showingCharacterDetail = false
+    @State private var detailProfile: CharacterProfile?
+    @State private var viewMode: ViewMode = .web
+    @State private var filterRelationshipType: String? = nil
+    
+    enum ViewMode: String, CaseIterable {
+        case web = "Web"
+        case matrix = "Matrix"
+        case list = "List"
+        
+        var icon: String {
+            switch self {
+            case .web: return "network"
+            case .matrix: return "square.grid.3x3"
+            case .list: return "list.bullet"
+            }
+        }
+    }
     
     private var castProfiles: [CharacterProfile] {
         dataManager.allProfiles.filter { profile in
@@ -26,6 +43,7 @@ struct CastRelationshipView: View {
     
     private var allRelationships: [CharacterRelationship] {
         var relationships: [CharacterRelationship] = []
+        var seenPairs = Set<String>()
         
         for profile in castProfiles {
             let profileRelationships = dataManager.relationships(for: profile)
@@ -34,15 +52,27 @@ struct CastRelationshipView: View {
                     cast.characterIds.contains(relationship.fromCharacterId) &&
                     cast.characterIds.contains(relationship.toCharacterId)
                 }
-            relationships.append(contentsOf: profileRelationships)
+            
+            for relationship in profileRelationships {
+                // Create a unique key for the relationship pair
+                let key = [relationship.fromCharacterId, relationship.toCharacterId].sorted().joined(separator: "-")
+                if !seenPairs.contains(key) {
+                    seenPairs.insert(key)
+                    relationships.append(relationship)
+                }
+            }
         }
         
-        // Remove duplicates
-        return Array(Set(relationships))
+        // Apply filter if set
+        if let filterType = filterRelationshipType {
+            return relationships.filter { $0.relationshipType == filterType }
+        }
+        
+        return relationships
     }
     
-    private var relationshipTypes: Set<String> {
-        Set(allRelationships.map { $0.relationshipType })
+    private var relationshipTypes: [String] {
+        Array(Set(allRelationships.map { $0.relationshipType })).sorted()
     }
     
     var body: some View {
@@ -51,56 +81,50 @@ struct CastRelationshipView: View {
             Color(.systemGroupedBackground)
                 .ignoresSafeArea()
             
-            // Web visualization
-            GeometryReader { geometry in
-                ZStack {
-                    // Relationship connections
-                    ForEach(allRelationships) { relationship in
-                        RelationshipConnection(
-                            relationship: relationship,
-                            fromPosition: positionForCharacter(relationship.fromCharacterId, in: geometry.size),
-                            toPosition: positionForCharacter(relationship.toCharacterId, in: geometry.size),
-                            isHighlighted: hoveredRelationshipId == relationship.id ||
-                                         selectedCharacterId == relationship.fromCharacterId ||
-                                         selectedCharacterId == relationship.toCharacterId
-                        )
-                        .onTapGesture {
-                            withAnimation {
-                                hoveredRelationshipId = relationship.id
-                            }
-                        }
+            // Content based on view mode
+            Group {
+                switch viewMode {
+                case .web:
+                    if let centerProfile = getCenterProfile() {
+                        RelationshipWebCanvas(centerProfile: centerProfile)
+                            .environment(\.castContext, CastContext(cast: cast, filteredRelationships: allRelationships))
+                    } else {
+                        emptyCastView
                     }
                     
-                    // Character nodes
-                    ForEach(castProfiles) { profile in
-                        CastCharacterNode(
-                            profile: profile,
-                            position: positionForCharacter(profile.id, in: geometry.size),
-                            isSelected: selectedCharacterId == profile.id,
-                            relationships: relationshipsForCharacter(profile.id)
-                        )
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                selectedCharacterId = selectedCharacterId == profile.id ? nil : profile.id
-                            }
-                        }
-                    }
+                case .matrix:
+                    RelationshipMatrixView(
+                        cast: cast,
+                        profiles: castProfiles,
+                        relationships: allRelationships
+                    )
+                    
+                case .list:
+                    CastRelationshipListView(
+                        cast: cast,
+                        profiles: castProfiles,
+                        relationships: allRelationships
+                    )
                 }
-                .scaleEffect(zoom)
-                .offset(offset)
             }
             
-            // Controls overlay
+            // Overlay controls
             VStack {
+                // Top controls
                 HStack {
-                    // Legend toggle
-                    Button {
-                        withAnimation {
-                            showingLegend.toggle()
+                    // View mode picker
+                    Menu {
+                        ForEach(ViewMode.allCases, id: \.self) { mode in
+                            Button {
+                                withAnimation {
+                                    viewMode = mode
+                                }
+                            } label: {
+                                Label(mode.rawValue, systemImage: mode.icon)
+                            }
                         }
                     } label: {
-                        Label(showingLegend ? "Hide Legend" : "Show Legend",
-                              systemImage: "list.bullet.rectangle")
+                        Label(viewMode.rawValue, systemImage: viewMode.icon)
                             .padding(8)
                             .background(.ultraThinMaterial)
                             .cornerRadius(8)
@@ -108,33 +132,52 @@ struct CastRelationshipView: View {
                     
                     Spacer()
                     
-                    // Zoom controls
-                    HStack(spacing: 12) {
-                        Button {
-                            withAnimation {
-                                zoom = max(0.5, zoom - 0.2)
+                    // Filter menu
+                    if !relationshipTypes.isEmpty {
+                        Menu {
+                            Button {
+                                filterRelationshipType = nil
+                            } label: {
+                                Label("All Types", systemImage: filterRelationshipType == nil ? "checkmark" : "")
+                            }
+                            
+                            Divider()
+                            
+                            ForEach(relationshipTypes, id: \.self) { type in
+                                Button {
+                                    filterRelationshipType = type
+                                } label: {
+                                    Label(
+                                        type,
+                                        systemImage: filterRelationshipType == type ? "checkmark" : ""
+                                    )
+                                }
                             }
                         } label: {
-                            Image(systemName: "minus.magnifyingglass")
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(8)
+                            Label(
+                                filterRelationshipType ?? "All Types",
+                                systemImage: "line.3.horizontal.decrease.circle"
+                            )
+                            .padding(8)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
                         }
-                        
-                        Text("\(Int(zoom * 100))%")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .frame(width: 50)
-                        
+                    }
+                    
+                    // Legend toggle (for web view)
+                    if viewMode == .web {
                         Button {
                             withAnimation {
-                                zoom = min(2.0, zoom + 0.2)
+                                showingLegend.toggle()
                             }
                         } label: {
-                            Image(systemName: "plus.magnifyingglass")
-                                .padding(8)
-                                .background(.ultraThinMaterial)
-                                .cornerRadius(8)
+                            Label(
+                                showingLegend ? "Hide Legend" : "Show Legend",
+                                systemImage: "list.bullet.rectangle"
+                            )
+                            .padding(8)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(8)
                         }
                     }
                 }
@@ -142,29 +185,35 @@ struct CastRelationshipView: View {
                 
                 Spacer()
                 
-                // Legend
-                if showingLegend {
-                    RelationshipLegend(types: Array(relationshipTypes))
-                        .padding()
-                }
-                
-                // Selected character info
-                if let selectedId = selectedCharacterId,
-                   let selectedProfile = castProfiles.first(where: { $0.id == selectedId }) {
-                    SelectedCharacterInfo(
-                        profile: selectedProfile,
-                        relationships: relationshipsForCharacter(selectedId),
-                        onClose: { selectedCharacterId = nil }
+                // Bottom overlays
+                VStack(spacing: 16) {
+                    // Legend (for web view)
+                    if viewMode == .web && showingLegend && !relationshipTypes.isEmpty {
+                        RelationshipLegend(types: relationshipTypes)
+                            .padding(.horizontal)
+                    }
+                    
+                    // Cast info card
+                    CastInfoCard(
+                        cast: cast,
+                        characterCount: castProfiles.count,
+                        relationshipCount: allRelationships.count
                     )
-                    .padding()
+                    .padding(.horizontal)
                 }
+                .padding(.bottom)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text("\(cast.name) Relationships")
-                    .font(.headline)
+                VStack(spacing: 2) {
+                    Text(cast.name)
+                        .font(.headline)
+                    Text("\(castProfiles.count) characters")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -178,39 +227,40 @@ struct CastRelationshipView: View {
         .sheet(isPresented: $showingAddRelationship) {
             AddCastRelationshipView(cast: cast)
         }
-        .gesture(
-            MagnificationGesture()
-                .onChanged { value in
-                    zoom = value
-                }
-        )
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    offset = value.translation
-                }
-        )
+        .sheet(isPresented: $showingCharacterDetail) {
+            if let profile = detailProfile,
+               let request = dataManager.request(for: profile) {
+                CharacterDetailView(profile: profile, request: request)
+            }
+        }
     }
     
-    private func positionForCharacter(_ characterId: String, in size: CGSize) -> CGPoint {
-        guard let index = cast.characterIds.firstIndex(of: characterId) else {
-            return CGPoint(x: size.width / 2, y: size.height / 2)
+    // MARK: - Helper Methods
+    
+    private func getCenterProfile() -> CharacterProfile? {
+        // Try to get the selected character first
+        if let selectedId = selectedCharacterId,
+           let profile = castProfiles.first(where: { $0.id == selectedId }) {
+            return profile
         }
         
-        let count = cast.characterIds.count
-        let angle = (CGFloat(index) / CGFloat(count)) * 2 * .pi - .pi / 2
-        let radius = min(size.width, size.height) * 0.35
+        // Otherwise, find the character with the most relationships
+        let characterRelationshipCounts = castProfiles.map { profile in
+            let count = allRelationships.filter { relationship in
+                relationship.fromCharacterId == profile.id ||
+                relationship.toCharacterId == profile.id
+            }.count
+            return (profile: profile, count: count)
+        }
         
-        return CGPoint(
-            x: size.width / 2 + cos(angle) * radius,
-            y: size.height / 2 + sin(angle) * radius
-        )
+        return characterRelationshipCounts.max(by: { $0.count < $1.count })?.profile ?? castProfiles.first
     }
     
-    private func relationshipsForCharacter(_ characterId: String) -> [CharacterRelationship] {
-        allRelationships.filter { relationship in
-            relationship.fromCharacterId == characterId ||
-            relationship.toCharacterId == characterId
-        }
+    private var emptyCastView: some View {
+        ContentUnavailableView(
+            "No Characters",
+            systemImage: "person.3.slash",
+            description: Text("Add characters to this cast to see their relationships")
+        )
     }
 }

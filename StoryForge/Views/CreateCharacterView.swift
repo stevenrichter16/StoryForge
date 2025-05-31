@@ -57,6 +57,10 @@ struct CreateCharacterView: View {
                         .padding(.top, 40)
                         .padding(.bottom, 20)
                         
+                        // Pregenerated Characters Carousel
+                        PreGeneratedCharacterCarousel()
+                            .padding(.vertical)
+                        
                         // Quick Start Section
                         QuickStartSection(
                             onQuickCreate: { template in
@@ -248,7 +252,7 @@ struct CreateCharacterView: View {
     }
 }
 
-// MARK: - Supporting Views
+/// MARK: - Supporting Views
 struct GenerationStatusCard: View {
     @State private var animationPhase = 0.0
     
